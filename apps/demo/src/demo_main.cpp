@@ -36,7 +36,7 @@ int main(int argc, const char** argv) {
 
     cv::namedWindow("BGS Demo", 0);
 
-    cv::Mat frame, greyFrame;
+    cv::Mat frame, greyFrame, bgImg;
     long numFrames = 0;
     double totalTime = 0;
 
@@ -47,7 +47,7 @@ int main(int argc, const char** argv) {
     }
 
     cv::cvtColor(frame, greyFrame, cv::COLOR_BGR2GRAY);
-    vibeBGS.initialize(greyFrame, 12);
+    vibeBGS.initialize(greyFrame, 10);
     std::cout << "initializeParallel" << std::endl;
 
     cv::Mat bgsMask(frame.size(), CV_8UC1);
@@ -76,6 +76,8 @@ int main(int argc, const char** argv) {
             std::cout << "Framerate: " << (numFrames / totalTime) << " fps" << std::endl;
         }
         cv::imshow("BGS Demo", bgsMask);
+        vibeBGS.getBackgroundImage(bgImg);
+        cv::imshow("bg", bgImg);
 
         char c = (char)cv::waitKey(10);
         if (c == 27) {

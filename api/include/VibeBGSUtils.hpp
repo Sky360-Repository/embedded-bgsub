@@ -25,6 +25,10 @@ namespace sky360 {
             originalPixelPos{_originalPixelPos}
         {}
 
+        static std::unique_ptr<ImgSize> create(int _width, int _height, int _numBytesPerPixel, size_t _originalPixelPos = 0) {
+            return std::make_unique<ImgSize>(_width, _height, _numBytesPerPixel, _originalPixelPos);
+        }
+
         const int width;
         const int height;
         const int numBytesPerPixel;

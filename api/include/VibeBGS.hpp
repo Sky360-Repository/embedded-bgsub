@@ -36,6 +36,8 @@ namespace sky360 {
         int m_numProcessesParallel;
         std::vector<int> m_processSeq;
 
+        std::unique_ptr<ImgSize> m_origImgSize;
+
         std::vector<std::vector<std::unique_ptr<Img>>> m_bgImgSamples;
 
         void initialize(const Img& _initImg, std::vector<std::unique_ptr<Img>>& _bgImgSamples);
