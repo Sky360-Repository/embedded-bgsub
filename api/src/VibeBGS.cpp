@@ -16,7 +16,8 @@ namespace sky360 {
         m_numProcessesParallel = _numProcesses;
 
         std::vector<std::shared_ptr<Img>> imgSplit(_numProcesses);
-        Img frameImg(_initImg.data, ImgSize(_initImg.size().width, _initImg.size().height, _initImg.channels()));
+        m_origImgSize = ImgSize::create(_initImg.size().width, _initImg.size().height, _initImg.channels());
+        Img frameImg(_initImg.data, *m_origImgSize);
         splitImg(frameImg, imgSplit, _numProcesses);
 
         m_processSeq.resize(_numProcesses);
@@ -176,19 +177,27 @@ namespace sky360 {
     }
 
     void VibeBGS::getBackgroundImage(cv::Mat& backgroundImage) const {
-        // cv::Mat oAvgBGImg = cv::Mat::zeros(m_oImgSize, CV_32FC(m_bgImgSamples[0].size.numBytesPerPixel));
-        // for(size_t n = 0; n < m_nBGSamples; ++n) {
-        //     for(int y = 0; y < m_oImgSize.height; ++y) {
-        //         for(int x = 0; x < m_oImgSize.width; ++x) {
-        //             const size_t idx_uchar = m_voBGImg[n].step.p[0] * y + m_voBGImg[n].step.p[1] * x;
-        //             const size_t idx_flt32 = idx_uchar * 4;
-        //             float* oAvgBgImgPtr = (float*)(oAvgBGImg.data + idx_flt32);
-        //             const uchar* const oBGImgPtr = m_voBGImg[n].data + idx_uchar;
-        //             for(size_t c = 0; c < (size_t)m_voBGImg[n].channels(); ++c)
-        //                 oAvgBgImgPtr[c] += ((float)oBGImgPtr[c]) / m_nBGSamples;
-        //         }
-        //     }
-        // }
-        // oAvgBGImg.convertTo(backgroundImage, CV_8U);
+        cv::Mat oAvgBGImg(m_origImgSize->height, m_origImgSize->width, CV_32FC(m_origImgSize->numBytesPerPixel));
+
+        for(size_t t{0}; t < m_numProcessesParallel; ++t) {
+            const std::vector<std::unique_ptr<Img>>& bgSamples = m_bgImgSamples[t];
+
+            for(size_t n{0}; n < m_params.NBGSamples; ++n) {
+                size_t inPixOffset{0};
+                size_t outPixOffset{bgSamples[0]->size.originalPixelPos * sizeof(float) * bgSamples[0]->size.numBytesPerPixel};
+                for (;inPixOffset < bgSamples[n]->size.size; 
+                      inPixOffset += m_origImgSize->numBytesPerPixel, 
+                      outPixOffset += sizeof(float) * bgSamples[0]->size.numBytesPerPixel) {
+                    const uchar* const pixData{&bgSamples[n]->data[inPixOffset]};
+                    float* const outData{(float*)(oAvgBGImg.data + outPixOffset)};
+                    for(int c{0}; c < m_origImgSize->numBytesPerPixel; ++c) {
+                        outData[c] += (float)pixData[c] / (float)m_params.NBGSamples;
+                    }
+                }
+
+            }
+        }
+
+        oAvgBGImg.convertTo(backgroundImage, CV_8U);
     }
 }
