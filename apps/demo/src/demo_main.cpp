@@ -64,8 +64,8 @@ int main(int argc, const char** argv) {
         cv::cvtColor(frame, greyFrame, cv::COLOR_BGR2GRAY);
 
         double startTime = getAbsoluteTime();
-        //wmv.process(greyFrame, bgsMask);
-        vibeBGS.apply(greyFrame, bgsMask);
+        wmv.process(greyFrame, bgsMask);
+        //vibeBGS.apply(greyFrame, bgsMask);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
         ++numFrames;
