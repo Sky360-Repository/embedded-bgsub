@@ -11,10 +11,13 @@ WeightedMovingVariance::WeightedMovingVariance()
     : m_params(true, true, 15),
     m_numProcessesParallel(12)
 {
+    imgInputPrevParallel.resize(m_numProcessesParallel);
+
     for (int i = 0; i < m_numProcessesParallel; ++i) {
         m_processSeq.push_back(i);
+        imgInputPrevParallel[i][0] = std::make_unique<cv::Mat>();
+        imgInputPrevParallel[i][1] = std::make_unique<cv::Mat>();
     }
-    img_input_prev_parallel.resize(m_numProcessesParallel);
 }
 
 WeightedMovingVariance::~WeightedMovingVariance()
@@ -23,7 +26,10 @@ WeightedMovingVariance::~WeightedMovingVariance()
 
 void WeightedMovingVariance::process(const cv::Mat &_imgInput, cv::Mat &_imgOutput)
 {
-    process(_imgInput, _imgOutput, img_input_prev, m_params);
+    if (m_numProcessesParallel > 1) 
+        processParallel(_imgInput, _imgOutput);
+    else
+        process(_imgInput, _imgOutput, imgInputPrevParallel[0], m_params);
 }
 
 void WeightedMovingVariance::processParallel(const cv::Mat &_imgInput, cv::Mat &_imgOutput) {
@@ -35,94 +41,88 @@ void WeightedMovingVariance::processParallel(const cv::Mat &_imgInput, cv::Mat &
         {
             int height = _imgInput.size().height / m_numProcessesParallel;
             int pixelPos = np * _imgInput.size().width * height;
-            //std::cout << "np: " << np << ", pos: " << pixelPos << ", height: " << height << std::endl; 
-            cv::Mat imgSplit(height, _imgInput.size().width, _imgInput.type(), _imgInput.data + (pixelPos * 3));
+            cv::Mat imgSplit(height, _imgInput.size().width, _imgInput.type(), _imgInput.data + (pixelPos * _imgInput.channels()));
             cv::Mat maskPartial(height, _imgInput.size().width, _imgOutput.type(), _imgOutput.data + pixelPos);
-            process(imgSplit, maskPartial, img_input_prev_parallel[np], m_params);
+            process(imgSplit, maskPartial, imgInputPrevParallel[np], m_params);
         });
 }
 
-void WeightedMovingVariance::process(const cv::Mat &img_input, cv::Mat &img_output, std::array<cv::Mat, 2>& img_input_prev, const WeightedMovingVarianceParams& _params)
+void WeightedMovingVariance::process(const cv::Mat &img_input, 
+                                    cv::Mat &img_output, 
+                                    std::array<std::unique_ptr<cv::Mat>, 2>& imgInputPrev, 
+                                    const WeightedMovingVarianceParams& _params)
 {
-    if (img_input_prev[0].empty())
+    static const float oneThird = 1.0f / 3.0f;
+
+    auto img_input_f = std::make_unique<cv::Mat>();
+    img_input.convertTo(*img_input_f, CV_32F, 1. / 255.);
+
+    if (imgInputPrev[0]->empty())
     {
-        img_input.copyTo(img_input_prev[0]);
+        imgInputPrev[0] = std::move(img_input_f);
         return;
     }
 
-    if (img_input_prev[1].empty())
+    if (imgInputPrev[1]->empty())
     {
-        img_input_prev[0].copyTo(img_input_prev[1]);
-        img_input.copyTo(img_input_prev[0]);
+        imgInputPrev[1] = std::move(imgInputPrev[0]);
+        imgInputPrev[0] = std::move(img_input_f);
         return;
     }
 
-    cv::Mat img_input_f;
-    img_input.convertTo(img_input_f, CV_32F, 1. / 255.);
-
-    cv::Mat img_input_prev_1_f;
-    img_input_prev[0].convertTo(img_input_prev_1_f, CV_32F, 1. / 255.);
-
-    cv::Mat img_input_prev_2_f;
-    img_input_prev[1].convertTo(img_input_prev_2_f, CV_32F, 1. / 255.);
-
-    // Weighted mean
-    cv::Mat img_mean_f;
-
-    if (_params.enableWeight)
-        img_mean_f = ((img_input_f * 0.5) + (img_input_prev_1_f * 0.3) + (img_input_prev_2_f * 0.2));
-    else
-        img_mean_f = ((img_input_f * 0.3) + (img_input_prev_1_f * 0.3) + (img_input_prev_2_f * 0.3));
+    cv::Mat& img_input_prev_1_f = *imgInputPrev[0];
+    cv::Mat& img_input_prev_2_f = *imgInputPrev[1];
 
     // Weighted variance
-    cv::Mat img_1_f;
-    cv::Mat img_2_f;
-    cv::Mat img_3_f;
-    cv::Mat img_4_f;
+    cv::Mat imgProcess;
 
-    if (_params.enableWeight)
-    {
-        computeWeightedVariance(img_input_f, img_mean_f, 0.5, img_1_f);
-        computeWeightedVariance(img_input_prev_1_f, img_mean_f, 0.3, img_2_f);
-        computeWeightedVariance(img_input_prev_2_f, img_mean_f, 0.2, img_3_f);
-        img_4_f = (img_1_f + img_2_f + img_3_f);
-    }
-    else
-    {
-        computeWeightedVariance(img_input_f, img_mean_f, 0.3, img_1_f);
-        computeWeightedVariance(img_input_prev_1_f, img_mean_f, 0.3, img_2_f);
-        computeWeightedVariance(img_input_prev_2_f, img_mean_f, 0.3, img_3_f);
-        img_4_f = (img_1_f + img_2_f + img_3_f);
+    if (_params.enableWeight) {
+        // Weighted mean
+        computeWeightedVarianceCombined(*img_input_f, img_input_prev_1_f, img_input_prev_2_f, 
+                                        0.5f, 0.3f, 0.2f, imgProcess);
+    } else {
+        // Weighted mean
+        computeWeightedVarianceCombined(*img_input_f, img_input_prev_1_f, img_input_prev_2_f, 
+                                        oneThird, oneThird, oneThird, imgProcess);
     }
 
-    // Standard deviation
-    cv::Mat img_sqrt_f(img_input.size(), CV_32F);
-    cv::sqrt(img_4_f, img_sqrt_f);
-    cv::Mat img_sqrt(img_input.size(), CV_8U);
-    double minVal, maxVal;
-    minVal = 0.;
-    maxVal = 1.;
-    img_sqrt_f.convertTo(img_sqrt, CV_8U, 255.0 / (maxVal - minVal), -minVal);
-
-    if (img_sqrt.channels() == 3)
-        cv::cvtColor(img_sqrt, img_sqrt, CV_BGR2GRAY);
+    if (imgProcess.channels() == 3)
+        cv::cvtColor(imgProcess, imgProcess, CV_BGR2GRAY);
 
     if (_params.enableThreshold)
-        cv::threshold(img_sqrt, img_sqrt, _params.threshold, 255, cv::THRESH_BINARY);
+         cv::threshold(imgProcess, imgProcess, _params.threshold, 255, cv::THRESH_BINARY);
 
-    memcpy(img_output.data, img_sqrt.data, img_output.size().width * img_output.size().height);
+    memcpy(img_output.data, imgProcess.data, img_output.size().width * img_output.size().height);
 
-    img_input_prev[0].copyTo(img_input_prev[1]);
-    img_input.copyTo(img_input_prev[0]);
+    imgInputPrev[1] = std::move(imgInputPrev[0]);
+    imgInputPrev[0] = std::move(img_input_f);
 }
 
-void WeightedMovingVariance::computeWeightedVariance(const cv::Mat &img_input_f, const cv::Mat &img_mean_f, const double weight, cv::Mat& img_f)
+void WeightedMovingVariance::computeWeightedVarianceCombined(
+        const cv::Mat &img1F, 
+        const cv::Mat &img2F, 
+        const cv::Mat &img3F, 
+        const float weight1, 
+        const float weight2, 
+        const float weight3, 
+        cv::Mat& img_f)
 {
-    // ERROR in return (weight * ((cv::abs(img_input_f - img_mean_f))^2.));
-
-    cv::Mat img_f_absdiff(img_input_f.size(), CV_32F);
-    cv::absdiff(img_input_f, img_mean_f, img_f_absdiff);
-    cv::Mat img_f_pow(img_input_f.size(), CV_32F);
-    cv::pow(img_f_absdiff, 2.0, img_f_pow);
-    img_f = weight * img_f_pow;
+    img_f.create(img1F.size(), CV_8UC(img1F.channels()));
+    size_t totalDataSize{img1F.size().area() * (size_t)img1F.channels()};
+    float *dataI1 = (float*)img1F.data;
+    float *dataI2 = (float*)img2F.data;
+    float *dataI3 = (float*)img3F.data;
+    uchar *dataOut = img_f.data;
+    for (size_t i{0}; i < totalDataSize; ++i) {
+        const float mean{(*dataI1 * weight1) + (*dataI2 * weight2) + (*dataI3 * weight3)};
+        const float value1{std::abs(*dataI1 - mean)};
+        const float value2{std::abs(*dataI2 - mean)};
+        const float value3{std::abs(*dataI3 - mean)};
+        const float result = std::sqrt(((value1 * value1) * weight1) + ((value2 * value2) * weight2) + ((value3 * value3) * weight3));
+        *dataOut = (uchar)(result * 255.0f);
+        ++dataOut;
+        ++dataI1;
+        ++dataI2;
+        ++dataI3;
+    }
 }
