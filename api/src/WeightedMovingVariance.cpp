@@ -134,9 +134,9 @@ void WeightedMovingVariance::weightedVarianceColor(
     uchar *dataI3{img3.data};
     uchar *dataOut{outImg.data};
     for (size_t i{0}; i < totalDataSize; ++i) {
-        const float r = calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3);
-        const float g = calcWeightedVariance(dataI1 + 1, dataI2 + 1, dataI3 + 1, weight1, weight2, weight3);
-        const float b = calcWeightedVariance(dataI1 + 2, dataI2 + 2, dataI3 + 2, weight1, weight2, weight3);
+        const float r{calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3)};
+        const float g{calcWeightedVariance(dataI1 + 1, dataI2 + 1, dataI3 + 1, weight1, weight2, weight3)};
+        const float b{calcWeightedVariance(dataI1 + 2, dataI2 + 2, dataI3 + 2, weight1, weight2, weight3)};
         const float result{0.299f * r + 0.587f * g + 0.114f * b};
         *dataOut = _params.enableThreshold ? ((uchar)(result > _params.threshold ? 255 : 0))
                                             : (uchar)result;
