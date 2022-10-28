@@ -51,6 +51,9 @@ namespace sky360 {
     }
 
     void VibeBGS::apply(const cv::Mat& _image, cv::Mat& _fgmask) {
+        if (_fgmask.empty()) {
+            _fgmask.create(_image.size(), CV_8UC1);
+        }
         Img applyImg(_image.data, ImgSize(_image.size().width, _image.size().height, _image.channels()));
         Img maskImg(_fgmask.data, ImgSize(_fgmask.size().width, _fgmask.size().height, 1));
         if (m_numProcessesParallel == 1) {
