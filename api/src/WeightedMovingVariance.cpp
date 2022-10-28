@@ -115,9 +115,9 @@ void WeightedMovingVariance::computeWeightedVarianceCombined(
     uchar *dataOut = img_f.data;
     for (size_t i{0}; i < totalDataSize; ++i) {
         const float mean{(*dataI1 * weight1) + (*dataI2 * weight2) + (*dataI3 * weight3)};
-        const float value1{std::abs(*dataI1 - mean)};
-        const float value2{std::abs(*dataI2 - mean)};
-        const float value3{std::abs(*dataI3 - mean)};
+        const float value1{*dataI1 - mean};
+        const float value2{*dataI2 - mean};
+        const float value3{*dataI3 - mean};
         const float result = std::sqrt(((value1 * value1) * weight1) + ((value2 * value2) * weight2) + ((value3 * value3) * weight3));
         *dataOut = (uchar)(result * 255.0f);
         ++dataOut;
