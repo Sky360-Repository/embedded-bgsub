@@ -31,20 +31,27 @@ namespace bgslibrary
             ~WeightedMovingVariance();
 
             void process(const cv::Mat &img_input, cv::Mat &img_output);
-            void processParallel(const cv::Mat &_imgInput, cv::Mat &_imgOutput);
 
         private:
-            std::array<cv::Mat, 2> img_input_prev;
-
             const int m_numProcessesParallel;
             std::vector<int> m_processSeq;
-            std::vector<std::array<cv::Mat, 2>> img_input_prev_parallel;
+            std::vector<std::array<std::unique_ptr<cv::Mat>, 2>> imgInputPrevParallel;
 
             const WeightedMovingVarianceParams m_params;
 
-            static void process(const cv::Mat &img_input, cv::Mat &img_output, std::array<cv::Mat, 2>& img_input_prev, const WeightedMovingVarianceParams& _params);
-
-            static void computeWeightedVariance(const cv::Mat &img_input_f, const cv::Mat &img_mean_f, const double weight, cv::Mat& img_f);
+            void processParallel(const cv::Mat &_imgInput, cv::Mat &_imgOutput);
+            static void process(const cv::Mat &img_input, 
+                                cv::Mat &img_output, 
+                                std::array<std::unique_ptr<cv::Mat>, 2>& img_input_prev, 
+                                const WeightedMovingVarianceParams& _params);
+            static void computeWeightedVarianceCombined(
+                    const cv::Mat &img1F, 
+                    const cv::Mat &img2F, 
+                    const cv::Mat &img3F, 
+                    const float weight1, 
+                    const float weight2, 
+                    const float weight3, 
+                    cv::Mat& img_f);
         };
     }
 }

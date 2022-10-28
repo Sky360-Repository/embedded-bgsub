@@ -64,8 +64,7 @@ int main(int argc, const char** argv) {
         cv::cvtColor(frame, greyFrame, cv::COLOR_BGR2GRAY);
 
         double startTime = getAbsoluteTime();
-        //wmv.process(frame, bgsMask);
-        //wmv.processParallel(frame, bgsMask);
+        //wmv.process(greyFrame, bgsMask);
         vibeBGS.apply(greyFrame, bgsMask);
         double endTime = getAbsoluteTime();
         totalTime += endTime - startTime;
@@ -76,8 +75,8 @@ int main(int argc, const char** argv) {
             std::cout << "Framerate: " << (numFrames / totalTime) << " fps" << std::endl;
         }
         cv::imshow("BGS Demo", bgsMask);
-        vibeBGS.getBackgroundImage(bgImg);
-        cv::imshow("bg", bgImg);
+        // vibeBGS.getBackgroundImage(bgImg);
+        // cv::imshow("bg", bgImg);
 
         char c = (char)cv::waitKey(10);
         if (c == 27) {
