@@ -26,6 +26,9 @@ WeightedMovingVariance::~WeightedMovingVariance()
 
 void WeightedMovingVariance::process(const cv::Mat &_imgInput, cv::Mat &_imgOutput)
 {
+    if (_imgOutput.empty()) {
+        _imgOutput.create(_imgInput.size(), CV_8UC1);
+    }
     if (m_numProcessesParallel > 1) 
         processParallel(_imgInput, _imgOutput);
     else
@@ -79,14 +82,10 @@ void WeightedMovingVariance::process(const cv::Mat &_inImage,
 
 inline float calcWeightedVariance(const uchar* const i1, const uchar* const i2, const uchar* const i3,
                         const float w1, const float w2, const float w3) {
-    const float dI1 = (float)*i1;
-    const float dI2 = (float)*i2;
-    const float dI3 = (float)*i3;
-    const float mean{(dI1 * w1) + (dI2 * w2) + (dI3 * w3)};
-    const float value1{dI1 - mean};
-    const float value2{dI2 - mean};
-    const float value3{dI3 - mean};
-    return std::sqrt(((value1 * value1) * w1) + ((value2 * value2) * w2) + ((value3 * value3) * w3));
+    const float dI[] = {(float)*i1, (float)*i2, (float)*i3};
+    const float mean{(dI[0] * w1) + (dI[1] * w2) + (dI[2] * w3)};
+    const float value[] = {dI[0] - mean, dI[1] - mean, dI[2] - mean};
+    return std::sqrt(((value[0] * value[0]) * w1) + ((value[1] * value[1]) * w2) + ((value[2] * value[2]) * w3));
 } 
 
 void WeightedMovingVariance::weightedVarianceMono(
