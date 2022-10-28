@@ -47,82 +47,108 @@ void WeightedMovingVariance::processParallel(const cv::Mat &_imgInput, cv::Mat &
         });
 }
 
-void WeightedMovingVariance::process(const cv::Mat &img_input, 
-                                    cv::Mat &img_output, 
-                                    std::array<std::unique_ptr<cv::Mat>, 2>& imgInputPrev, 
+void WeightedMovingVariance::process(const cv::Mat &_inImage, 
+                                    cv::Mat &_outImg, 
+                                    std::array<std::unique_ptr<cv::Mat>, 2>& _imgInputPrev, 
                                     const WeightedMovingVarianceParams& _params)
 {
-    static const float oneThird = 1.0f / 3.0f;
+    auto inImageCopy = std::make_unique<cv::Mat>();
+    _inImage.copyTo(*inImageCopy);
 
-    auto img_input_f = std::make_unique<cv::Mat>();
-    img_input.convertTo(*img_input_f, CV_32F, 1. / 255.);
-
-    if (imgInputPrev[0]->empty())
+    if (_imgInputPrev[0]->empty())
     {
-        imgInputPrev[0] = std::move(img_input_f);
+        _imgInputPrev[0] = std::move(inImageCopy);
         return;
     }
 
-    if (imgInputPrev[1]->empty())
+    if (_imgInputPrev[1]->empty())
     {
-        imgInputPrev[1] = std::move(imgInputPrev[0]);
-        imgInputPrev[0] = std::move(img_input_f);
+        _imgInputPrev[1] = std::move(_imgInputPrev[0]);
+        _imgInputPrev[0] = std::move(inImageCopy);
         return;
     }
-
-    cv::Mat& img_input_prev_1_f = *imgInputPrev[0];
-    cv::Mat& img_input_prev_2_f = *imgInputPrev[1];
 
     // Weighted variance
-    cv::Mat imgProcess;
+    cv::Mat imgProcess(inImageCopy->size(), CV_8UC1);
 
-    if (_params.enableWeight) {
-        // Weighted mean
-        computeWeightedVarianceCombined(*img_input_f, img_input_prev_1_f, img_input_prev_2_f, 
-                                        0.5f, 0.3f, 0.2f, imgProcess);
-    } else {
-        // Weighted mean
-        computeWeightedVarianceCombined(*img_input_f, img_input_prev_1_f, img_input_prev_2_f, 
-                                        oneThird, oneThird, oneThird, imgProcess);
-    }
+    // Weighted mean
+    if (inImageCopy->channels() == 1)
+        weightedVarianceMono(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], imgProcess, _params);
+    else
+        weightedVarianceColor(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], imgProcess, _params);
 
-    if (imgProcess.channels() == 3)
-        cv::cvtColor(imgProcess, imgProcess, CV_BGR2GRAY);
+    memcpy(_outImg.data, imgProcess.data, _outImg.size().width * _outImg.size().height);
 
-    if (_params.enableThreshold)
-         cv::threshold(imgProcess, imgProcess, _params.threshold, 255, cv::THRESH_BINARY);
-
-    memcpy(img_output.data, imgProcess.data, img_output.size().width * img_output.size().height);
-
-    imgInputPrev[1] = std::move(imgInputPrev[0]);
-    imgInputPrev[0] = std::move(img_input_f);
+    _imgInputPrev[1] = std::move(_imgInputPrev[0]);
+    _imgInputPrev[0] = std::move(inImageCopy);
 }
 
-void WeightedMovingVariance::computeWeightedVarianceCombined(
-        const cv::Mat &img1F, 
-        const cv::Mat &img2F, 
-        const cv::Mat &img3F, 
-        const float weight1, 
-        const float weight2, 
-        const float weight3, 
-        cv::Mat& img_f)
+inline float calcWeightedVariance(const uchar* const i1, const uchar* const i2, const uchar* const i3,
+                        const float w1, const float w2, const float w3) {
+    const float dI1 = (float)*i1;
+    const float dI2 = (float)*i2;
+    const float dI3 = (float)*i3;
+    const float mean{(dI1 * w1) + (dI2 * w2) + (dI3 * w3)};
+    const float value1{dI1 - mean};
+    const float value2{dI2 - mean};
+    const float value3{dI3 - mean};
+    return std::sqrt(((value1 * value1) * w1) + ((value2 * value2) * w2) + ((value3 * value3) * w3));
+} 
+
+void WeightedMovingVariance::weightedVarianceMono(
+        const cv::Mat &img1, 
+        const cv::Mat &img2, 
+        const cv::Mat &img3, 
+        cv::Mat& outImg,
+        const WeightedMovingVarianceParams& _params)
 {
-    img_f.create(img1F.size(), CV_8UC(img1F.channels()));
-    size_t totalDataSize{img1F.size().area() * (size_t)img1F.channels()};
-    float *dataI1 = (float*)img1F.data;
-    float *dataI2 = (float*)img2F.data;
-    float *dataI3 = (float*)img3F.data;
-    uchar *dataOut = img_f.data;
+    const float weight1{_params.enableWeight ? 0.5f : ONE_THIRD}; 
+    const float weight2{_params.enableWeight ? 0.3f : ONE_THIRD}; 
+    const float weight3{_params.enableWeight ? 0.2f : ONE_THIRD}; 
+
+    size_t totalDataSize{(size_t)img1.size().area()};
+    uchar *dataI1 = img1.data;
+    uchar *dataI2 = img2.data;
+    uchar *dataI3 = img3.data;
+    uchar *dataOut = outImg.data;
     for (size_t i{0}; i < totalDataSize; ++i) {
-        const float mean{(*dataI1 * weight1) + (*dataI2 * weight2) + (*dataI3 * weight3)};
-        const float value1{*dataI1 - mean};
-        const float value2{*dataI2 - mean};
-        const float value3{*dataI3 - mean};
-        const float result = std::sqrt(((value1 * value1) * weight1) + ((value2 * value2) * weight2) + ((value3 * value3) * weight3));
-        *dataOut = (uchar)(result * 255.0f);
+        float result{calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3)};
+        *dataOut = _params.enableThreshold ? ((uchar)(result > _params.threshold ? 255 : 0))
+                                            : (uchar)result;
         ++dataOut;
         ++dataI1;
         ++dataI2;
         ++dataI3;
+    }
+}
+
+void WeightedMovingVariance::weightedVarianceColor(
+        const cv::Mat &img1, 
+        const cv::Mat &img2, 
+        const cv::Mat &img3, 
+        cv::Mat& outImg,
+        const WeightedMovingVarianceParams& _params)
+{
+    const float weight1{_params.enableWeight ? 0.5f : ONE_THIRD}; 
+    const float weight2{_params.enableWeight ? 0.3f : ONE_THIRD}; 
+    const float weight3{_params.enableWeight ? 0.2f : ONE_THIRD}; 
+    const int numChannels = img1.channels();
+
+    size_t totalDataSize{(size_t)img1.size().area()};
+    uchar *dataI1 = img1.data;
+    uchar *dataI2 = img2.data;
+    uchar *dataI3 = img3.data;
+    uchar *dataOut = outImg.data;
+    for (size_t i{0}; i < totalDataSize; ++i) {
+        const float r = calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3);
+        const float g = calcWeightedVariance(dataI1 + 1, dataI2 + 1, dataI3 + 1, weight1, weight2, weight3);
+        const float b = calcWeightedVariance(dataI1 + 2, dataI2 + 2, dataI3 + 2, weight1, weight2, weight3);
+        const float result{0.299f * r + 0.587f * g + 0.114f * b};
+        *dataOut = _params.enableThreshold ? ((uchar)(result > _params.threshold ? 255 : 0))
+                                            : (uchar)result;
+        ++dataOut;
+        dataI1 += numChannels;
+        dataI2 += numChannels;
+        dataI3 += numChannels;
     }
 }
