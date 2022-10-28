@@ -39,8 +39,8 @@ void WeightedMovingVariance::processParallel(const cv::Mat &_imgInput, cv::Mat &
         m_processSeq.end(),
         [&](int np)
         {
-            int height = _imgInput.size().height / m_numProcessesParallel;
-            int pixelPos = np * _imgInput.size().width * height;
+            const int height{_imgInput.size().height / m_numProcessesParallel};
+            const int pixelPos{np * _imgInput.size().width * height};
             cv::Mat imgSplit(height, _imgInput.size().width, _imgInput.type(), _imgInput.data + (pixelPos * _imgInput.channels()));
             cv::Mat maskPartial(height, _imgInput.size().width, _imgOutput.type(), _imgOutput.data + pixelPos);
             process(imgSplit, maskPartial, imgInputPrevParallel[np], m_params);
@@ -68,16 +68,10 @@ void WeightedMovingVariance::process(const cv::Mat &_inImage,
         return;
     }
 
-    // Weighted variance
-    cv::Mat imgProcess(inImageCopy->size(), CV_8UC1);
-
-    // Weighted mean
     if (inImageCopy->channels() == 1)
-        weightedVarianceMono(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], imgProcess, _params);
+        weightedVarianceMono(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], _outImg, _params);
     else
-        weightedVarianceColor(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], imgProcess, _params);
-
-    memcpy(_outImg.data, imgProcess.data, _outImg.size().width * _outImg.size().height);
+        weightedVarianceColor(*inImageCopy, *_imgInputPrev[0], *_imgInputPrev[1], _outImg, _params);
 
     _imgInputPrev[1] = std::move(_imgInputPrev[0]);
     _imgInputPrev[0] = std::move(inImageCopy);
@@ -107,10 +101,10 @@ void WeightedMovingVariance::weightedVarianceMono(
     const float weight3{_params.enableWeight ? 0.2f : ONE_THIRD}; 
 
     size_t totalDataSize{(size_t)img1.size().area()};
-    uchar *dataI1 = img1.data;
-    uchar *dataI2 = img2.data;
-    uchar *dataI3 = img3.data;
-    uchar *dataOut = outImg.data;
+    uchar *dataI1{img1.data};
+    uchar *dataI2{img2.data};
+    uchar *dataI3{img3.data};
+    uchar *dataOut{outImg.data};
     for (size_t i{0}; i < totalDataSize; ++i) {
         float result{calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3)};
         *dataOut = _params.enableThreshold ? ((uchar)(result > _params.threshold ? 255 : 0))
@@ -135,10 +129,10 @@ void WeightedMovingVariance::weightedVarianceColor(
     const int numChannels = img1.channels();
 
     size_t totalDataSize{(size_t)img1.size().area()};
-    uchar *dataI1 = img1.data;
-    uchar *dataI2 = img2.data;
-    uchar *dataI3 = img3.data;
-    uchar *dataOut = outImg.data;
+    uchar *dataI1{img1.data};
+    uchar *dataI2{img2.data};
+    uchar *dataI3{img3.data};
+    uchar *dataOut{outImg.data};
     for (size_t i{0}; i < totalDataSize; ++i) {
         const float r = calcWeightedVariance(dataI1, dataI2, dataI3, weight1, weight2, weight3);
         const float g = calcWeightedVariance(dataI1 + 1, dataI2 + 1, dataI3 + 1, weight1, weight2, weight3);
