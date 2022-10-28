@@ -22,8 +22,8 @@ int main(int argc, const char** argv) {
     double freq = initFrequency();
 
     int camNum = std::stoi(argv[1]);
-    //cap.open(camNum);
-    cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
+    cap.open(camNum);
+    //cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
     if (!cap.isOpened())
     {
         std::cout << "***Could not initialize capturing...***\n";
@@ -35,6 +35,7 @@ int main(int argc, const char** argv) {
     std::cout << "Capture size: " << (int)frameWidth << " x " << (int)frameHeight << std::endl;
 
     cv::namedWindow("BGS Demo", 0);
+    cv::namedWindow("Live Video", 0);
 
     cv::Mat frame, greyFrame, bgImg;
     long numFrames = 0;
@@ -75,6 +76,7 @@ int main(int argc, const char** argv) {
             std::cout << "Framerate: " << (numFrames / totalTime) << " fps" << std::endl;
         }
         cv::imshow("BGS Demo", bgsMask);
+        cv::imshow("Live Video", frame);
         // vibeBGS.getBackgroundImage(bgImg);
         // cv::imshow("bg", bgImg);
 
