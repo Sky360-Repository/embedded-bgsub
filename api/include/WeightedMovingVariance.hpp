@@ -33,6 +33,8 @@ namespace bgslibrary
             void process(const cv::Mat &img_input, cv::Mat &img_output);
 
         private:
+            static inline const float ONE_THIRD{1.0f / 3.0f};
+
             const int m_numProcessesParallel;
             std::vector<int> m_processSeq;
             std::vector<std::array<std::unique_ptr<cv::Mat>, 2>> imgInputPrevParallel;
@@ -44,14 +46,18 @@ namespace bgslibrary
                                 cv::Mat &img_output, 
                                 std::array<std::unique_ptr<cv::Mat>, 2>& img_input_prev, 
                                 const WeightedMovingVarianceParams& _params);
-            static void computeWeightedVarianceCombined(
-                    const cv::Mat &img1F, 
-                    const cv::Mat &img2F, 
-                    const cv::Mat &img3F, 
-                    const float weight1, 
-                    const float weight2, 
-                    const float weight3, 
-                    cv::Mat& img_f);
+            static void weightedVarianceMono(
+                    const cv::Mat &_img1, 
+                    const cv::Mat &_img2, 
+                    const cv::Mat &_img3, 
+                    cv::Mat& _outImg,
+                    const WeightedMovingVarianceParams& _params);
+            static void weightedVarianceColor(
+                    const cv::Mat &_img1, 
+                    const cv::Mat &_img2, 
+                    const cv::Mat &_img3, 
+                    cv::Mat& _outImg,
+                    const WeightedMovingVarianceParams& _params);
         };
     }
 }

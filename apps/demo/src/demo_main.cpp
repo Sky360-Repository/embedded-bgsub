@@ -22,8 +22,8 @@ int main(int argc, const char** argv) {
     double freq = initFrequency();
 
     int camNum = std::stoi(argv[1]);
-    cap.open(camNum);
-    //cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
+    //cap.open(camNum);
+    cap.open("E:\\source\\sky360\\embedded-bgsub\\Dahua-20220901-184734.mp4");
     if (!cap.isOpened())
     {
         std::cout << "***Could not initialize capturing...***\n";
@@ -47,7 +47,7 @@ int main(int argc, const char** argv) {
     }
 
     cv::cvtColor(frame, greyFrame, cv::COLOR_BGR2GRAY);
-    vibeBGS.initialize(greyFrame, 10);
+    //vibeBGS.initialize(greyFrame, 12);
     std::cout << "initializeParallel" << std::endl;
 
     cv::Mat bgsMask(frame.size(), CV_8UC1);
